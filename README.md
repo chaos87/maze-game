@@ -25,6 +25,8 @@ Exactly one 🚩 start and one 🏁 exit per maze — enforced by design.
 
 Static file → any static host. On Vercel: import the repo, framework **Other**, no build command, output `./`. Every push redeploys.
 
+![Editor](docs/screenshot-editor.png)
+
 ## Docs
 
 Full design doc, architecture, roadmap and known issues: [`PROJECT.md`](./PROJECT.md).
