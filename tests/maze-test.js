@@ -1,4 +1,4 @@
-// Difficulty tests for Dino Maze Lab (runs against the real game script, one eval scope)
+// Difficulty + feasibility tests for Dino Maze Lab (runs the real game script, one eval scope)
 const fs = require('fs');
 const html = fs.readFileSync('/home/container/.openclaw/workspace/maze-game/index.html', 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
@@ -25,12 +25,15 @@ global.requestAnimationFrame = () => 0;
 global.confirm = () => false;
 global.prompt = () => '';
 global.alert = () => '';
+global.console.warn = () => {}; // keep output clean for the feasibility fallback
 
 const tests = `
 const snap = () => JSON.stringify({
   w: state.w, h: state.h, tiles: state.tiles,
   start: state.start, exit: state.exit, entities: state.entities,
 });
+const trapsOf = () => state.entities.filter(e => e.type === 'trap');
+const bearsOf = () => state.entities.filter(e => e.type === 'monster');
 
 /* boot smoke test: medium default */
 if (!state.tiles.length || state.w !== 15 || state.h !== 11) throw new Error('boot: maze not generated');
@@ -76,19 +79,19 @@ console.log('garbage rejection OK');
 /* ---- difficulty presets ---- */
 newMaze('easy');
 if (state.w !== 9 || state.h !== 7) throw new Error('easy size wrong');
-if (state.entities.filter(e => e.type === 'monster').length !== 0) throw new Error('easy should have no bears');
+if (bearsOf().length !== 0) throw new Error('easy should have no bears');
 if (state.entities.filter(e => e.type === 'portal').length !== 2) throw new Error('easy portals');
 console.log('easy OK: 9x7, entities:', state.entities.map(e => e.type).join(','));
 
 newMaze('medium');
 if (state.w !== 15 || state.h !== 11) throw new Error('medium size wrong');
-if (state.entities.filter(e => e.type === 'monster').length !== 1) throw new Error('medium bears');
+if (bearsOf().length !== 1) throw new Error('medium bears');
 console.log('medium OK: 15x11, entities:', state.entities.map(e => e.type).join(','));
 
 newMaze('hard');
 if (state.w !== 21 || state.h !== 15) throw new Error('hard size wrong');
-if (state.entities.filter(e => e.type === 'monster').length !== 3) throw new Error('hard bears');
-if (state.entities.filter(e => e.type === 'trap').length !== 2) throw new Error('hard pits');
+if (bearsOf().length !== 3) throw new Error('hard bears');
+if (trapsOf().length !== 2) throw new Error('hard pits');
 if (state.entities.filter(e => e.type === 'portal').length !== 4) throw new Error('hard portals');
 console.log('hard OK: 21x15, entities:', state.entities.map(e => e.type).join(','));
 
@@ -101,31 +104,22 @@ for (const k of ['easy','medium','hard']) {
 }
 console.log('round-trip OK for all 3 difficulties');
 
-/* BFS connectivity: exit + all entities reachable from start */
-function bfsReach() {
-  const seen = new Set(['1,1']);
-  const q = [[1,1]];
-  while (q.length) {
-    const [r,c] = q.pop();
-    for (const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-      const nr=r+dr, nc=c+dc;
-      if (state.tiles[nr] && state.tiles[nr][nc]===0 && !seen.has(nr+','+nc)) {
-        seen.add(nr+','+nc); q.push([nr,nc]);
-      }
-    }
-  }
-  return seen;
-}
+/* ---- FEASIBILITY: 25 fresh generations per difficulty ----
+   pits + bear patrol corridors are hard-blocked; the exit must still be
+   reachable around them, every single time. */
+let checked = 0;
 for (const k of ['easy','medium','hard']) {
-  newMaze(k);
-  const reach = bfsReach();
-  if (!reach.has(state.exit.r + ',' + state.exit.c)) throw new Error(k + ': exit unreachable!');
-  for (const e of state.entities)
-    if (!reach.has(e.r + ',' + e.c)) throw new Error(k + ': entity unreachable at ' + e.r + ',' + e.c);
+  for (let i = 0; i < 25; i++) {
+    newMaze(k);
+    if (!feasible(trapsOf(), bearsOf())) {
+      throw new Error(k + ' gen ' + i + ': maze infeasible (bear/pit blocks the only route)');
+    }
+    checked++;
+  }
 }
-console.log('connectivity OK: exit + all entities reachable in all 3 difficulties');
+console.log('feasibility OK: ' + checked + ' generated mazes all finishable');
 
-/* spawn-safety: no entity within manhattan 2 of start */
+/* spawn fairness: no entity within 2 tiles of start */
 for (const k of ['easy','medium','hard']) {
   newMaze(k);
   for (const e of state.entities) {

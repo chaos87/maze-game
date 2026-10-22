@@ -231,9 +231,54 @@ function braidMaze(t, w, h, factor){
   }
 }
 
+/* maximal straight open run through (r,c) — this is exactly how far a bear
+   patrolling from there can travel (bears bounce along one axis) */
+function corridorRun(r,c){
+  const horiz = isFloor(r, c-1) || isFloor(r, c+1);
+  const dr = horiz ? 0 : 1, dc = horiz ? 1 : 0;
+  const cells = [{r, c}];
+  for(let nr = r-dr, nc = c-dc; isFloor(nr,nc); nr -= dr, nc -= dc) cells.push({r:nr, c:nc});
+  for(let nr = r+dr, nc = c+dc; isFloor(nr,nc); nr += dr, nc += dc) cells.push({r:nr, c:nc});
+  return cells;
+}
+
+/* feasibility gate: can the ranger reach the exit without ever stepping
+   on a pit or entering a bear's patrol corridor? If not, the maze is
+   unfinishable — placements are rejected/retried so this stays true. */
+function feasible(pits, bears){
+  const blocked = new Set();
+  const key = (r,c) => r + '_' + c;
+  for(const p of pits) blocked.add(key(p.r, p.c));
+  for(const b of bears) for(const cell of corridorRun(b.r, b.c)) blocked.add(key(cell.r, cell.c));
+  const startKey = key(state.start.r, state.start.c);
+  const seen = new Set([startKey]);
+  const q = [{ r: state.start.r, c: state.start.c }];
+  while(q.length){
+    const cur = q.pop();
+    for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nr = cur.r + dr, nc = cur.c + dc;
+      if(!isFloor(nr,nc) || blocked.has(key(nr,nc)) || seen.has(key(nr,nc))) continue;
+      if(nr === state.exit.r && nc === state.exit.c) return true;
+      seen.add(key(nr,nc));
+      q.push({ r:nr, c:nc });
+    }
+  }
+  return false;
+}
+
 function newMaze(diffKey){
   const d = DIFFICULTY[diffKey] || DIFFICULTY.medium;
   state.difficultyKey = diffKey in DIFFICULTY ? diffKey : 'medium';
+  for(let attempt = 0; attempt < 60; attempt++){
+    if(buildMaze(d)) break;
+    if(attempt === 59) console.warn('maze feasibility fallback after 60 attempts');
+  }
+
+  fitView();
+  if(state.mode === 'play') setMode('edit');
+}
+
+function buildMaze(d){
   state.w = d.w; state.h = d.h;
   state.tiles = generateMaze(d.w, d.h);
   braidMaze(state.tiles, d.w, d.h, d.braid);
@@ -251,24 +296,42 @@ function newMaze(diffKey){
         open.push({r,c});
   shuffle(open);
 
+  const bears = [], pits = [];
+  // bears first (need the most freedom): retry spots until the patrol
+  // corridor doesn't become an uncrossable wall
   for(let i=0;i<d.bears;i++){
-    const spot = open.pop();
-    if(spot) state.entities.push({ type:'monster', r:spot.r, c:spot.c, sr:spot.r, sc:spot.c });
+    let placed = false;
+    while(open.length){
+      const spot = open.pop();
+      bears.push(spot);
+      if(feasible(pits, bears)){ placed = true; break; }
+      bears.pop();
+    }
+    if(!placed) return false;
   }
+  // pits: never on the guaranteed route
+  for(let i=0;i<d.pits;i++){
+    let placed = false;
+    while(open.length){
+      const spot = open.pop();
+      pits.push(spot);
+      if(feasible(pits, bears)){ placed = true; break; }
+      pits.pop();
+    }
+    if(!placed) return false;
+  }
+  // portals: harmless in any placement (teleporting can only help)
   for(let i=0;i<d.portals;i++){
     const p1 = open.pop(), p2 = open.pop();
-    if(p1 && p2) state.entities.push(
+    if(!p1 || !p2) return false;
+    state.entities.push(
       { type:'portal', r:p1.r, c:p1.c },
       { type:'portal', r:p2.r, c:p2.c }
     );
   }
-  for(let i=0;i<d.pits;i++){
-    const spot = open.pop();
-    if(spot) state.entities.push({ type:'trap', r:spot.r, c:spot.c });
-  }
-
-  fitView();
-  if(state.mode === 'play') setMode('edit');
+  for(const b of bears) state.entities.push({ type:'monster', r:b.r, c:b.c, sr:b.r, sc:b.c });
+  for(const p of pits) state.entities.push({ type:'trap', r:p.r, c:p.c });
+  return true;
 }
 
 /* ---------------- camera ---------------- */
