@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b120e">
+<title>Dino Maze Lab</title>
+<style>
+  :root{
+    --bg:#0b120e; --panel:#111c15; --line:#1e3325; --amber:#f2b134;
+    --text:#dfe9df; --dim:#8ba394; --danger:#e05a3a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg);color:var(--text);overflow:hidden;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;user-select:none;
+  }
+  header{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  h1{
+    font-size:13px;margin:0;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--amber);font-weight:800;white-space:nowrap;
+  }
+  .spacer{flex:1}
+  button{
+    font:inherit;font-size:13px;font-weight:600;color:var(--text);
+    background:#182a1d;border:1px solid var(--line);border-radius:8px;
+    padding:7px 12px;cursor:pointer;transition:.12s;white-space:nowrap;
+  }
+  button:hover{background:#20361f;border-color:#2d5033}
+  button.primary{background:var(--amber);color:#1a1204;border-color:#d69a1e}
+  button.primary:hover{background:#ffc44d}
+  button.active{background:#2b4a2c;border-color:#4d7a44;color:#eaffdf}
+  #toolbar{
+    display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap;
+    background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  #toolbar button{display:flex;align-items:center;gap:6px;padding:6px 10px}
+  #toolbar .ico{font-size:15px;line-height:1}
+  #stage{position:relative;flex:1 1 auto;min-height:0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  canvas.pan{cursor:grab}
+  canvas.panning{cursor:grabbing}
+  #hint{
+    flex:0 0 auto;padding:7px 12px;font-size:12.5px;color:var(--dim);
+    background:var(--panel);border-top:1px solid var(--line);min-height:32px;
+    display:flex;align-items:center;gap:10px;
+  }
+  #hint b{color:var(--amber);font-weight:700}
+  #overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(5,10,7,.78);backdrop-filter:blur(3px);z-index:5;
+  }
+  #overlay.hidden{display:none}
+  .card{
+    background:var(--panel);border:1px solid #2b4a2c;border-radius:16px;
+    padding:28px 36px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  .card .big{font-size:52px;line-height:1}
+  .card h2{margin:10px 0 4px;color:var(--amber);letter-spacing:.05em}
+  .card p{margin:0 0 18px;color:var(--dim);font-size:14px}
+  .card .row{display:flex;gap:10px;justify-content:center}
+  #toast{
+    position:absolute;left:50%;bottom:22px;transform:translate(-50%,20px);
+    background:#1d3324;border:1px solid #3d6b40;color:#e6ffe0;
+    padding:9px 16px;border-radius:999px;font-size:13px;font-weight:600;
+    opacity:0;pointer-events:none;transition:.25s;z-index:10;
+  }
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🦕 Dino Maze Lab</h1>
+  <div class="spacer"></div>
+  <button id="btnMode" class="primary">▶ Play</button>
+  <button id="btnNew">🌱 New maze</button>
+  <button id="btnCopy">🔗 Copy link</button>
+</header>
+
+<div id="toolbar">
+  <button data-tool="hand" class="active"><span class="ico">🖐</span>Pan</button>
+  <button data-tool="wall"><span class="ico">🧱</span>Rock</button>
+  <button data-tool="floor"><span class="ico">🟩</span>Path</button>
+  <button data-tool="start"><span class="ico">🚩</span>Start</button>
+  <button data-tool="exit"><span class="ico">🏁</span>Exit</button>
+  <button data-tool="monster"><span class="ico">🐻</span>Bear</button>
+  <button data-tool="trap"><span class="ico">🕳️</span>Pit</button>
+  <button data-tool="portal"><span class="ico">🌀</span>Portal</button>
+  <button data-tool="eraser"><span class="ico">⌫</span>Eraser</button>
+</div>
+
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="overlay" class="hidden">
+    <div class="card">
+      <div class="big" id="ovIcon">🦖</div>
+      <h2 id="ovTitle">You escaped!</h2>
+      <p id="ovText">The bears are still hungry.</p>
+      <div class="row">
+        <button id="ovAgain" class="primary">Play again</button>
+        <button id="ovEdit">Back to editor</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<div id="hint"></div>
+
+<script>
+/* =========================================================
+   DINO MAZE LAB
+   Canvas 2D renderer + grid editor + play mode + URL sharing
+   ========================================================= */
+
+const TILE = 48;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+const hintEl = document.getElementById('hint');
+const overlay = document.getElementById('overlay');
+const toastEl = document.getElementById('toast');
+
+let dpr = 1;
+let cam = { x: 0, y: 0, z: 1 };
+let now = 0;
+
+const state = {
+  w: 15, h: 11,
+  tiles: [],          // 0 = path, 1 = rock
+  start: { r: 1, c: 1 },
+  exit: { r: 9, c: 13 },
+  entities: [],       // {type:'monster'|'trap'|'portal', r, c, ...}
+  mode: 'edit',
+  tool: 'hand',
+};
+
+let player = null;    // {r,c,dead,won,timer}
+let monsterTimer = 0;
+let moveCooldown = 0;
+const keys = new Set();
+
+/* ---------------- helpers ---------------- */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+const isFloor = (r,c) => r>=0 && c>=0 && r<state.h && c<state.w && state.tiles[r][c]===0;
+const entAt = (r,c) => state.entities.find(e => e.r===r && e.c===c);
+function removeEntAt(r,c){ state.entities = state.entities.filter(e => !(e.r===r && e.c===c)); }
+function portals(){ return state.entities.filter(e => e.type==='portal'); }
+function monsters(){ return state.entities.filter(e => e.type==='monster'); }
+
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove('show'), 1900);
+}
+
+/* ---------------- maze generation (recursive backtracker) ---------------- */
+function generateMaze(w,h){
+  const t = Array.from({length:h}, () => Array(w).fill(1));
+  const stack = [[1,1]];
+  t[1][1] = 0;
+  while(stack.length){
+    const [r,c] = stack[stack.length-1];
+    const dirs = shuffle([[0,2],[0,-2],[2,0],[-2,0]]);
+    let moved = false;
+    for(const [dr,dc] of dirs){
+      const nr = r+dr, nc = c+dc;
+      if(nr>0 && nc>0 && nr<h-1 && nc<w-1 && t[nr][nc]===1){
+        t[r+dr/2][c+dc/2] = 0;
+        t[nr][nc] = 0;
+        stack.push([nr,nc]);
+        moved = true;
+        break;
+      }
+    }
+    if(!moved) stack.pop();
+  }
+  return t;
+}
+
+function newMaze(){
+  state.w = 15; state.h = 11;
+  state.tiles = generateMaze(state.w, state.h);
+  state.start = { r: 1, c: 1 };
+  state.exit = { r: state.h-2, c: state.w-2 };
+  state.entities = [];
+
+  const open = [];
+  for(let r=1;r<state.h-1;r++)
+    for(let c=1;c<state.w-1;c++)
+      if(state.tiles[r][c]===0
+        && !(r===state.start.r && c===state.start.c)
+        && !(r===state.exit.r && c===state.exit.c))
+        open.push({r,c});
+  shuffle(open);
+
+  const bear = open.pop();
+  if(bear) state.entities.push({ type:'monster', r:bear.r, c:bear.c, sr:bear.r, sc:bear.c });
+
+  const p1 = open.pop(), p2 = open.pop();
+  if(p1 && p2) state.entities.push(
+    { type:'portal', r:p1.r, c:p1.c },
+    { type:'portal', r:p2.r, c:p2.c }
+  );
+
+  const pit = open.pop();
+  if(pit) state.entities.push({ type:'trap', r:pit.r, c:pit.c });
+
+  fitView();
+  if(state.mode === 'play') setMode('edit');
+}
+
+/* ---------------- camera ---------------- */
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = stage.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+}
+function fitView(){
+  const rect = stage.getBoundingClientRect();
+  if(!rect.width) return;
+  const wpx = state.w*TILE, hpx = state.h*TILE;
+  const z = Math.min((rect.width-48)/wpx, (rect.height-48)/hpx);
+  cam.z = clamp(z, 0.2, 3);
+  cam.x = (rect.width - wpx*cam.z)/2;
+  cam.y = (rect.height - hpx*cam.z)/2;
+}
+const toScreen = (wx,wy) => ({ x: wx*cam.z + cam.x, y: wy*cam.z + cam.y });
+function cellAt(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const x = (clientX - rect.left - cam.x)/cam.z;
+  const y = (clientY - rect.top - cam.y)/cam.z;
+  const c = Math.floor(x/TILE), r = Math.floor(y/TILE);
+  if(r<0 || c<0 || r>=state.h || c>=state.w) return null;
+  return { r, c };
+}
+
+/* ---------------- painting ---------------- */
+function paint(r,c){
+  const tool = state.tool;
+  const onStart = state.start.r===r && state.start.c===c;
+  const onExit = state.exit.r===r && state.exit.c===c;
+
+  if(tool === 'wall'){
+    if(onStart || onExit) return;
+    state.tiles[r][c] = 1;
+    removeEntAt(r,c);
+    return;
+  }
+  if(tool === 'floor' || tool === 'eraser'){
+    state.tiles[r][c] = 0;
+    if(tool === 'eraser') removeEntAt(r,c);
+    return;
+  }
+  if(tool === 'start' || tool === 'exit'){
+    state.tiles[r][c] = 0;
+    removeEntAt(r,c);
+    if(tool === 'start') state.start = {r,c}; else state.exit = {r,c};
+    return;
+  }
+  // entity tools
+  if(onStart || onExit) return; // don't bury the flag
+  state.tiles[r][c] = 0;
+  removeEntAt(r,c);
+  if(tool === 'monster') state.entities.push({ type:'monster', r, c, sr:r, sc:c });
+  if(tool === 'trap')    state.entities.push({ type:'trap', r, c });
+  if(tool === 'portal')  state.entities.push({ type:'portal', r, c });
+}
+
+/* ---------------- rendering ---------------- */
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+
+function drawEmoji(ch, cx, cy, size, { rot=0, alpha=1, shadow=false } = {}){
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  if(rot) ctx.rotate(rot);
+  if(shadow){
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, size*0.42, size*0.30, size*0.10, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.font = `${size}px ${EMOJI_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ch, 0, size*0.06);
+  ctx.restore();
+}
+
+function drawGlowPad(cx, cy, radius, color, pulse){
+  const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, radius);
+  g.addColorStop(0, color);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.globalAlpha = 0.35 + 0.35*pulse;
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function render(t){
+  const rect = stage.getBoundingClientRect();
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,rect.width,rect.height);
+
+  // backdrop
+  ctx.fillStyle = '#0b120e';
+  ctx.fillRect(0,0,rect.width,rect.height);
+
+  ctx.save();
+  ctx.translate(cam.x, cam.y);
+  ctx.scale(cam.z, cam.z);
+
+  const wave = Math.sin(t*2.2);
+
+  /* --- tiles --- */
+  for(let r=0;r<state.h;r++){
+    for(let c=0;c<state.w;c++){
+      const x = c*TILE, y = r*TILE;
+      if(state.tiles[r][c] === 1){
+        // rock
+        ctx.fillStyle = '#1b2a1e';
+        ctx.fillRect(x, y, TILE, TILE);
+        const shade = ['#2f4632','#2a4030','#33492f'][(r*31 + c*17) % 3];
+        ctx.fillStyle = shade;
+        ctx.fillRect(x+2, y+2, TILE-4, TILE-8);
+        ctx.fillStyle = '#42603a';
+        ctx.fillRect(x+2, y+2, TILE-4, 5);
+        ctx.fillStyle = '#16231a';
+        ctx.fillRect(x, y+TILE-4, TILE, 4);
+      } else {
+        ctx.fillStyle = ((r+c) % 2 === 0) ? '#131e17' : '#16221a';
+        ctx.fillRect(x, y, TILE, TILE);
+      }
+    }
+  }
+
+  /* --- start / exit pads --- */
+  const sx = (state.start.c+0.5)*TILE, sy = (state.start.r+0.5)*TILE;
+  drawGlowPad(sx, sy, TILE*0.75, 'rgba(90,220,120,.9)', 0.5 + 0.5*Math.sin(t*2));
+  drawEmoji('🚩', sx, sy, TILE*0.62, { shadow:true });
+
+  const ex = (state.exit.c+0.5)*TILE, ey = (state.exit.r+0.5)*TILE;
+  drawGlowPad(ex, ey, TILE*0.85, 'rgba(242,177,52,.95)', 0.5 + 0.5*Math.sin(t*2.6));
+  drawEmoji('🏁', ex, ey, TILE*0.62, { shadow:true });
+
+  /* --- entities --- */
+  const ps = portals();
+  for(const e of state.entities){
+    const cx = (e.c+0.5)*TILE, cy = (e.r+0.5)*TILE;
+
+    if(e.type === 'monster'){
+      const bob = Math.sin(t*3.2 + e.c)*2.2;
+      drawEmoji('🐻', cx, cy + bob, TILE*0.66, { shadow:true });
+    }
+    else if(e.type === 'trap'){
+      const a = 0.55 + 0.45*Math.sin(t*4 + e.r);
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.35*a;
+      ctx.strokeStyle = '#e05a3a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, TILE*0.34, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+      drawEmoji('🕳️', cx, cy, TILE*0.58);
+    }
+    else if(e.type === 'portal'){
+      const idx = ps.indexOf(e);
+      const paired = idx % 2 === 0 ? !!ps[idx+1] : !!ps[idx-1];
+      drawEmoji('🌀', cx, cy, TILE*0.62, {
+        rot: t*1.6, alpha: paired ? 1 : 0.35, shadow:false
+      });
+      ctx.save();
+      ctx.globalAlpha = paired ? 0.85 : 0.4;
+      ctx.fillStyle = '#9ad0ff';
+      ctx.font = `bold ${Math.round(TILE*0.22)}px ui-sans-serif,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(Math.floor(idx/2)+1), cx + TILE*0.26, cy + TILE*0.26);
+      ctx.restore();
+    }
+  }
+
+  /* --- player --- */
+  if(state.mode === 'play' && player){
+    const px = (player.c+0.5)*TILE, py = (player.r+0.5)*TILE;
+    const shake = player.dead ? Math.sin(t*60)*4 : 0;
+    drawGlowPad(px, py, TILE*0.6, 'rgba(140,220,255,.85)', 0.6);
+    drawEmoji('🤠', px + shake, py, TILE*0.62, {
+      alpha: player.dead ? 0.6 : 1, shadow:true
+    });
+  }
+
+  ctx.restore();
+
+  /* --- vignette --- */
+  const vg = ctx.createRadialGradient(
+    rect.width/2, rect.height/2, Math.min(rect.width,rect.height)*0.25,
+    rect.width/2, rect.height/2, Math.max(rect.width,rect.height)*0.78
+  );
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.55)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,rect.width,rect.height);
+}
+
+/* ---------------- play mode ---------------- */
+function setMode(mode){
+  if(mode === 'play'){
+    if(!state.start || !state.exit){ toast('Place a start 🚩 and an exit 🏁 first'); return; }
+    state.mode = 'play';
+    document.getElementById('btnMode').textContent = '✏️ Edit';
+    document.getElementById('btnMode').classList.remove('primary');
+    document.getElementById('toolbar').style.opacity = '.45';
+    keys.clear();
+    resetPlay();
+  } else {
+    state.mode = 'edit';
+    player = null;
+    document.getElementById('btnMode').textContent = '▶ Play';
+    document.getElementById('btnMode').classList.add('primary');
+    document.getElementById('toolbar').style.opacity = '1';
+    overlay.classList.add('hidden');
+  }
+  updateHint();
+}
+
+function resetPlay(){
+  player = { r: state.start.r, c: state.start.c, dead:false, won:false, timer:0 };
+  monsterTimer = 0;
+  moveCooldown = 0;
+  for(const m of monsters()){
+    m.r = m.sr; m.c = m.sc;
+    m.dir = null;
+  }
+  overlay.classList.add('hidden');
+}
+
+function pickDir(m){
+  if(isFloor(m.r, m.c-1) || isFloor(m.r, m.c+1)){
+    m.dir = isFloor(m.r, m.c-1) ? {dr:0, dc:-1} : {dr:0, dc:1};
+  } else {
+    m.dir = isFloor(m.r-1, m.c) ? {dr:-1, dc:0} : {dr:1, dc:0};
+  }
+}
+
+function updateMonsters(dt){
+  monsterTimer -= dt;
+  if(monsterTimer > 0) return;
+  monsterTimer = 430;
+
+  for(const m of monsters()){
+    if(!m.dir) pickDir(m);
+    const nr = m.r + m.dir.dr, nc = m.c + m.dir.dc;
+    const blocked = !isFloor(nr,nc) || monsters().some(o => o!==m && o.r===nr && o.c===nc);
+    if(blocked){
+      m.dir = { dr:-m.dir.dr, dc:-m.dir.dc };
+    } else {
+      m.r = nr; m.c = nc;
+    }
+  }
+}
+
+function playerDie(){
+  if(player.dead) return;
+  player.dead = true;
+  player.timer = 650;
+}
+
+function checkCollisions(){
+  const m = monsters().find(x => x.r===player.r && x.c===player.c);
+  if(m){ playerDie(); return; }
+  const tr = state.entities.find(e => e.type==='trap' && e.r===player.r && e.c===player.c);
+  if(tr){ playerDie(); return; }
+  if(player.r === state.exit.r && player.c === state.exit.c){
+    player.won = true;
+    document.getElementById('ovIcon').textContent = '🦖';
+    document.getElementById('ovTitle').textContent = 'You escaped!';
+    document.getElementById('ovText').textContent = 'The bears are still hungry.';
+    document.getElementById('ovAgain').textContent = 'Play again';
+    overlay.classList.remove('hidden');
+  }
+}
+
+function tryMove(dr,dc){
+  if(!player || player.dead || player.won) return;
+  const nr = player.r + dr, nc = player.c + dc;
+  if(!isFloor(nr,nc)) return;
+  player.r = nr; player.c = nc;
+
+  // portal
+  const ps = portals();
+  const idx = ps.findIndex(p => p.r===nr && p.c===nc);
+  if(idx >= 0){
+    const partnerIdx = idx % 2 === 0 ? idx+1 : idx-1;
+    const partner = ps[partnerIdx];
+    if(partner){ player.r = partner.r; player.c = partner.c; }
+  }
+  checkCollisions();
+}
+
+function updatePlay(dt){
+  if(!player) return;
+
+  if(player.dead){
+    player.timer -= dt;
+    if(player.timer <= 0) resetPlay();
+    return;
+  }
+  if(player.won) return;
+
+  // input
+  moveCooldown -= dt;
+  if(moveCooldown <= 0){
+    let dr = 0, dc = 0;
+    if(keys.has('ArrowUp') || keys.has('KeyW')) dr = -1;
+    else if(keys.has('ArrowDown') || keys.has('KeyS')) dr = 1;
+    else if(keys.has('ArrowLeft') || keys.has('KeyA')) dc = -1;
+    else if(keys.has('ArrowRight') || keys.has('KeyD')) dc = 1;
+    if(dr || dc){
+      tryMove(dr,dc);
+      moveCooldown = 150;
+    }
+  }
+
+  updateMonsters(dt);
+
+  if(!player.dead && !player.won) checkCollisions();
+}
+
+/* ---------------- input ---------------- */
+let panning = false, panStart = null, panOrigin = null;
+let painting = false;
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const wx = (mx - cam.x)/cam.z, wy = (my - cam.y)/cam.z;
+  cam.z = clamp(cam.z * Math.exp(-e.deltaY * 0.0015), 0.25, 3.5);
+  cam.x = mx - wx*cam.z;
+  cam.y = my - wy*cam.z;
+}, { passive:false });
+
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  const isPan = state.tool === 'hand' || e.button === 1 || keys.has('Space');
+  if(isPan){
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panOrigin = { x: cam.x, y: cam.y };
+    canvas.classList.add('panning');
+    return;
+  }
+  if(state.mode === 'play') return;
+  const cell = cellAt(e.clientX, e.clientY);
+  if(!cell) return;
+  painting = true;
+  paint(cell.r, cell.c);
+});
+
+canvas.addEventListener('pointermove', e => {
+  if(panning){
+    cam.x = panOrigin.x + (e.clientX - panStart.x);
+    cam.y = panOrigin.y + (e.clientY - panStart.y);
+    return;
+  }
+  if(painting && (state.tool === 'wall' || state.tool === 'floor' || state.tool === 'eraser')){
+    const cell = cellAt(e.clientX, e.clientY);
+    if(cell) paint(cell.r, cell.c);
+  }
+});
+
+function endPointer(e){
+  if(panning){ panning = false; canvas.classList.remove('panning'); }
+  painting = false;
+  try{ canvas.releasePointerCapture(e.pointerId); }catch(_){}
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+
+window.addEventListener('keydown', e => {
+  if(e.code === 'Space'){ e.preventDefault(); keys.add('Space'); return; }
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+
+  if(state.mode === 'edit'){
+    const step = 40;
+    if(e.code === 'ArrowLeft' || e.code === 'KeyA'){ cam.x += step; }
+    if(e.code === 'ArrowRight' || e.code === 'KeyD'){ cam.x -= step; }
+    if(e.code === 'ArrowUp' || e.code === 'KeyW'){ cam.y += step; }
+    if(e.code === 'ArrowDown' || e.code === 'KeyS'){ cam.y -= step; }
+    return;
+  }
+  keys.add(e.code);
+  moveCooldown = 0; // instant response on first press
+});
+
+window.addEventListener('keyup', e => {
+  keys.delete(e.code);
+});
+window.addEventListener('blur', () => keys.clear());
+
+/* ---------------- UI wiring ---------------- */
+document.querySelectorAll('[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if(state.mode === 'play') setMode('edit');
+    state.tool = btn.dataset.tool;
+    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b === btn));
+    canvas.classList.toggle('pan', state.tool === 'hand');
+    updateHint();
+  });
+});
+
+document.getElementById('btnMode').addEventListener('click', () => {
+  setMode(state.mode === 'play' ? 'edit' : 'play');
+});
+document.getElementById('btnNew').addEventListener('click', () => {
+  if(!confirm('Start a brand new maze? Your current one will be replaced.')) return;
+  newMaze();
+  updateHint();
+});
+document.getElementById('ovAgain').addEventListener('click', () => resetPlay());
+document.getElementById('ovEdit').addEventListener('click', () => setMode('edit'));
+
+document.getElementById('btnCopy').addEventListener('click', async () => {
+  const url = location.origin + location.pathname + '#m=' + encodeMaze();
+  try{
+    await navigator.clipboard.writeText(url);
+    toast('🔗 Link copied — send it to a friend!');
+  }catch(_){
+    prompt('Copy this link:', url);
+  }
+});
+
+/* ---------------- hint bar ---------------- */
+function updateHint(){
+  if(state.mode === 'play'){
+    hintEl.innerHTML = '<b>Find the 🏁</b> · move with arrows / WASD · avoid 🐻 and 🕳️ · 🌀 teleports you';
+  } else {
+    const tips = {
+      hand: 'Drag to pan, scroll to zoom.',
+      wall: 'Click or drag to carve rock walls.',
+      floor: 'Paint open path back over rock.',
+      start: 'Click to move the 🚩 start. Only one per maze.',
+      exit: 'Click to move the 🏁 exit. Only one per maze.',
+      monster: 'Place a 🐻. Bears patrol back and forth until they hit rock.',
+      trap: 'Place a 🕳️ pit. Stepping on it sends you back to start.',
+      portal: 'Place 🌀 in pairs — the first pairs with the second, and so on.',
+      eraser: 'Click or drag to clear rock and anything on the tile.',
+    };
+    hintEl.innerHTML = `<b>Editor</b> · ${tips[state.tool] || ''}`;
+  }
+}
+
+/* ---------------- share encoding ---------------- */
+function encodeMaze(){
+  const tiles = state.tiles.map(row => row.join('')).join(',');
+  const ents = state.entities.map(e => {
+    const k = e.type === 'monster' ? 'm' : e.type === 'trap' ? 't' : 'p';
+    return k + e.r + '.' + e.c;
+  }).join(';');
+  const s = ['1', state.w, state.h, tiles,
+    state.start.r, state.start.c,
+    state.exit.r, state.exit.c, ents].join(',');
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function decodeMaze(code){
+  let s = code.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length % 4) s += '=';
+  s = atob(s);
+
+  const parts = s.split(',');
+  if(parts[0] !== '1') throw new Error('bad version');
+
+  const w = parseInt(parts[1],10), h = parseInt(parts[2],10);
+  if(!w || !h || w > 200 || h > 200) throw new Error('bad size');
+
+  const rows = parts.slice(3, 3+h);
+  if(rows.length !== h) throw new Error('bad tiles');
+
+  const tiles = rows.map(row => {
+    if(row.length !== w) throw new Error('bad row');
+    return row.split('').map(ch => ch === '1' ? 1 : 0);
+  });
+
+  const base = 3 + h;
+  const start = { r: parseInt(parts[base],10), c: parseInt(parts[base+1],10) };
+  const exit = { r: parseInt(parts[base+2],10), c: parseInt(parts[base+3],10) };
+  const entsRaw = parts.slice(base+4).join(',');
+
+  const entities = [];
+  if(entsRaw){
+    for(const chunk of entsRaw.split(';')){
+      if(!chunk) continue;
+      const kind = chunk[0];
+      const [rr,cc] = chunk.slice(1).split('.').map(n => parseInt(n,10));
+      if(Number.isNaN(rr) || Number.isNaN(cc)) continue;
+      if(kind === 'm') entities.push({ type:'monster', r:rr, c:cc, sr:rr, sc:cc });
+      if(kind === 't') entities.push({ type:'trap', r:rr, c:cc });
+      if(kind === 'p') entities.push({ type:'portal', r:rr, c:cc });
+    }
+  }
+
+  state.w = w; state.h = h;
+  state.tiles = tiles;
+  state.start = start;
+  state.exit = exit;
+  state.entities = entities;
+}
+
+/* ---------------- main loop ---------------- */
+let lastT = performance.now();
+
+function frame(ts){
+  const dt = Math.min(50, ts - lastT);
+  lastT = ts;
+  now = ts/1000;
+
+  if(state.mode === 'play') updatePlay(dt);
+
+  render(now);
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- boot ---------------- */
+function boot(){
+  resize();
+  fitView();
+
+  const hash = location.hash;
+  let loaded = false;
+  if(hash.startsWith('#m=')){
+    try{ decodeMaze(hash.slice(3)); loaded = true; }
+    catch(err){ console.warn('Bad maze link, generating a new one.', err); }
+  }
+  if(!loaded) newMaze();
+
+  fitView();
+  updateHint();
+
+  // start on Rock so a kid can immediately draw
+  state.tool = 'wall';
+  document.querySelectorAll('[data-tool]').forEach(b =>
+    b.classList.toggle('active', b.dataset.tool === 'wall'));
+  canvas.classList.toggle('pan', false);
+
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', () => { resize(); fitView(); });
+
+boot();
+</script>
+</body>
+</html>
