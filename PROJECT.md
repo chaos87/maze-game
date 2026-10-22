@@ -93,10 +93,23 @@ const state = {
     { type:'portal', r, c },
   ],
   mode: 'edit' | 'play',
+  difficultyKey: 'easy' | 'medium' | 'hard',  // affects generated mazes only, not shared links
   tool: 'hand' | 'wall' | 'floor' | 'start' | 'exit'
         | 'monster' | 'trap' | 'portal' | 'eraser',
 };
 ```
+
+### Difficulty presets (generation only — share format unchanged)
+
+| Level | Grid | Braid | Bears | Pits | Portal pairs |
+|--------|-------|-------------------|-------|------|--------------|
+| 🟢 Easy | 9×7 | 0.85 — lots of loops | 0 | 1 | 1 |
+| 🟠 Medium | 15×11 | 0.35 | 1 | 1 | 1 |
+| 🔴 Hard | 21×15 | 0.08 — near-perfect maze | 3 | 2 | 2 |
+
+`braidMaze` opens dead-end walls after generation so easier mazes have
+multiple routes instead of one forced path. Entities are never placed
+within 2 tiles (Manhattan) of the start spawn.
 
 - **`edit`** — paint tiles; pan/zoom; place/move start & exit; place
   entities.
@@ -218,6 +231,7 @@ save→copy→open-in-new-tab cycle.
 | Play mode (ranger 🤠, arrow keys/WASD) | ✅ |
 | Win/lose overlay + replay | ✅ |
 | Procedural starter maze ("New maze" button) | ✅ |
+| Difficulty levels 🟢 / 🟠 / 🔴 for auto-generated mazes | ✅ |
 | Share via URL | ✅ |
 | Jurassic aesthetic (rock, amber, vignette) | ✅ |
 | Undo (Ctrl+Z) | ❌ |

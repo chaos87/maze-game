@@ -81,6 +81,9 @@
   <button id="btnMode" class="primary">▶ Play</button>
   <button id="btnNew">🌱 New maze</button>
   <button id="btnCopy">🔗 Copy link</button>
+  <button data-diff="easy" title="Small maze, lots of paths, no bears">🟢 Easy</button>
+  <button data-diff="medium" title="The original maze" class="active">🟠 Medium</button>
+  <button data-diff="hard" title="Big maze, sneaky bears, more traps">🔴 Hard</button>
 </header>
 
 <div id="toolbar">
@@ -189,33 +192,80 @@ function generateMaze(w,h){
   return t;
 }
 
-function newMaze(){
-  state.w = 15; state.h = 11;
-  state.tiles = generateMaze(state.w, state.h);
+/* difficulty presets for auto-generated mazes.
+   braid = fraction of dead ends opened into loops
+   (higher = more alternate paths = more forgiving) */
+const DIFFICULTY = {
+  easy:   { w: 9,  h: 7,  braid: 0.85, bears: 0, pits: 1, portals: 1 },
+  medium: { w: 15, h: 11, braid: 0.35, bears: 1, pits: 1, portals: 1 },
+  hard:   { w: 21, h: 15, braid: 0.08, bears: 3, pits: 2, portals: 2 },
+};
+const DIFF_LABEL = { easy: '🟢 Easy', medium: '🟠 Medium', hard: '🔴 Hard' };
+
+/* knock out dead-end walls so the maze has loops, not one forced path */
+function braidMaze(t, w, h, factor){
+  const dead = [];
+  for(let r=1;r<h-1;r+=2)
+    for(let c=1;c<w-1;c+=2){
+      if(t[r][c]!==0) continue;
+      const exits =
+        (t[r-1][c]===0) + (t[r+1][c]===0) +
+        (t[r][c-1]===0) + (t[r][c+1]===0);
+      if(exits === 1) dead.push({r, c});
+    }
+  shuffle(dead);
+  const count = Math.round(dead.length * factor);
+  for(let i=0;i<count;i++){
+    const d = dead[i];
+    const sides = shuffle([
+      { r: d.r,   c: d.c+1 },
+      { r: d.r,   c: d.c-1 },
+      { r: d.r+1, c: d.c   },
+      { r: d.r-1, c: d.c   },
+    ]);
+    for(const s of sides){
+      const nr = s.r + (s.r - d.r), nc = s.c + (s.c - d.c); // cell beyond the wall
+      if(nr<=0 || nc<=0 || nr>=h-1 || nc>=w-1) continue;
+      if(t[s.r][s.c]===1 && t[nr][nc]===0){ t[s.r][s.c] = 0; break; }
+    }
+  }
+}
+
+function newMaze(diffKey){
+  const d = DIFFICULTY[diffKey] || DIFFICULTY.medium;
+  state.difficultyKey = diffKey in DIFFICULTY ? diffKey : 'medium';
+  state.w = d.w; state.h = d.h;
+  state.tiles = generateMaze(d.w, d.h);
+  braidMaze(state.tiles, d.w, d.h, d.braid);
   state.start = { r: 1, c: 1 };
-  state.exit = { r: state.h-2, c: state.w-2 };
+  state.exit = { r: d.h-2, c: d.w-2 };
   state.entities = [];
 
   const open = [];
-  for(let r=1;r<state.h-1;r++)
-    for(let c=1;c<state.w-1;c++)
+  for(let r=1;r<d.h-1;r++)
+    for(let c=1;c<d.w-1;c++)
       if(state.tiles[r][c]===0
         && !(r===state.start.r && c===state.start.c)
-        && !(r===state.exit.r && c===state.exit.c))
+        && !(r===state.exit.r && c===state.exit.c)
+        && Math.abs(r - state.start.r) + Math.abs(c - state.start.c) > 2) // keep the spawn area fair
         open.push({r,c});
   shuffle(open);
 
-  const bear = open.pop();
-  if(bear) state.entities.push({ type:'monster', r:bear.r, c:bear.c, sr:bear.r, sc:bear.c });
-
-  const p1 = open.pop(), p2 = open.pop();
-  if(p1 && p2) state.entities.push(
-    { type:'portal', r:p1.r, c:p1.c },
-    { type:'portal', r:p2.r, c:p2.c }
-  );
-
-  const pit = open.pop();
-  if(pit) state.entities.push({ type:'trap', r:pit.r, c:pit.c });
+  for(let i=0;i<d.bears;i++){
+    const spot = open.pop();
+    if(spot) state.entities.push({ type:'monster', r:spot.r, c:spot.c, sr:spot.r, sc:spot.c });
+  }
+  for(let i=0;i<d.portals;i++){
+    const p1 = open.pop(), p2 = open.pop();
+    if(p1 && p2) state.entities.push(
+      { type:'portal', r:p1.r, c:p1.c },
+      { type:'portal', r:p2.r, c:p2.c }
+    );
+  }
+  for(let i=0;i<d.pits;i++){
+    const spot = open.pop();
+    if(spot) state.entities.push({ type:'trap', r:spot.r, c:spot.c });
+  }
 
   fitView();
   if(state.mode === 'play') setMode('edit');
@@ -631,13 +681,25 @@ document.querySelectorAll('[data-tool]').forEach(btn => {
 document.getElementById('btnMode').addEventListener('click', () => {
   setMode(state.mode === 'play' ? 'edit' : 'play');
 });
-document.getElementById('btnNew').addEventListener('click', () => {
-  if(!confirm('Start a brand new maze? Your current one will be replaced.')) return;
-  newMaze();
-  updateHint();
+document.getElementById('btnNew').addEventListener('click', () => regenerate());
+document.querySelectorAll('[data-diff]').forEach(btn => {
+  btn.addEventListener('click', () => regenerate(btn.dataset.diff));
 });
 document.getElementById('ovAgain').addEventListener('click', () => resetPlay());
 document.getElementById('ovEdit').addEventListener('click', () => setMode('edit'));
+
+function regenerate(diffKey){
+  if(!confirm('Start a brand new maze? Your current one will be replaced.')) return;
+  newMaze(diffKey || state.difficultyKey || 'medium');
+  refreshDiffButtons();
+  updateHint();
+  toast((DIFF_LABEL[state.difficultyKey] || '🟠 Medium') + ' maze ready!');
+}
+
+function refreshDiffButtons(){
+  document.querySelectorAll('[data-diff]').forEach(b =>
+    b.classList.toggle('active', b.dataset.diff === state.difficultyKey));
+}
 
 document.getElementById('btnCopy').addEventListener('click', async () => {
   const url = location.origin + location.pathname + '#m=' + encodeMaze();
@@ -751,7 +813,11 @@ function boot(){
     try{ decodeMaze(hash.slice(3)); loaded = true; }
     catch(err){ console.warn('Bad maze link, generating a new one.', err); }
   }
-  if(!loaded) newMaze();
+  if(!loaded){
+    state.difficultyKey = 'medium';
+    newMaze('medium');
+    refreshDiffButtons();
+  }
 
   fitView();
   updateHint();

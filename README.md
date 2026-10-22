@@ -16,6 +16,7 @@ python3 -m http.server 8000
 ## How to play
 
 - **Editor**: pick a tool (Rock, Path, Start, Exit, Bear, Pit, Portal, Eraser) and paint. Drag with 🖐 to pan, scroll to zoom.
+- **Difficulty**: 🟢 Easy / 🟠 Medium / 🔴 Hard buttons generate a fresh auto-maze of that level.
 - **Play**: arrow keys / WASD. Avoid bears and pits — step on a portal to teleport.
 - **Share**: 🔗 Copy link sends the whole maze in the URL hash.
 
