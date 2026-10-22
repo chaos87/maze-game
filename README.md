@@ -13,6 +13,9 @@ python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
+![Easy](docs/screenshot-easy.png)
+![Hard](docs/screenshot-hard.png)
+
 ## How to play
 
 - **Editor**: pick a tool (Rock, Path, Start, Exit, Bear, Pit, Portal, Eraser) and paint. Drag with 🖐 to pan, scroll to zoom.
