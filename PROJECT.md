@@ -25,6 +25,9 @@ Repo: `chaos87/maze-game`
 - **Emoji + procedural shapes** for graphics in v1 — no art assets.
   Drop-in spritesheet swap is planned but not yet needed.
 - **Portals come in pairs**, auto-paired by placement order (1↔1, 2↔2, …).
+- **Triangles** 🔺 are a sticky artifact: stepping on one freezes the ranger for 5
+  seconds, then they can walk off. The tile persists forever and re-triggers
+  every time the hero lands on it (serializes as glyph `x` in the maze URL).
 - **Vanilla JS, no build step** — one `index.html` runs by double-clicking
   or drag-dropping into a static host.
 
@@ -66,6 +69,7 @@ const ENTITY_TYPES = {
   monster: { emoji: '🦖', anim: 'bob' },
   trap:    { emoji: '🕳️', anim: 'pulse' },
   portal:  { emoji: '🌀', anim: 'spin' },
+  triangle:{ emoji: '🔺', anim: 'pulse' },
   start:   { emoji: '🚩' },
   exit:    { emoji: '🏁' },
 };
@@ -94,7 +98,7 @@ const state = {
   ],
   mode: 'edit' | 'play',
   difficultyKey: 'easy' | 'medium' | 'hard',  // affects generated mazes only, not shared links
-  tool: 'hand' | 'wall' | 'floor' | 'start' | 'exit'
+  tool: 'hand' | 'wall' | 'floor' | 'start' | 'exit' | 'monster' | 'trap' | 'portal' | 'triangle' | 'eraser'
         | 'monster' | 'trap' | 'portal' | 'eraser',
 };
 ```

@@ -95,6 +95,7 @@
   <button data-tool="monster"><span class="ico">🦖</span>Dino</button>
   <button data-tool="trap"><span class="ico">🕳️</span>Pit</button>
   <button data-tool="portal"><span class="ico">🌀</span>Portal</button>
+  <button data-tool="triangle"><span class="ico">🔺</span>Triangle</button>
   <button data-tool="eraser"><span class="ico">⌫</span>Eraser</button>
 </div>
 
@@ -390,6 +391,7 @@ function paint(r,c){
   if(tool === 'monster') state.entities.push({ type:'monster', r, c, sr:r, sc:c });
   if(tool === 'trap')    state.entities.push({ type:'trap', r, c });
   if(tool === 'portal')  state.entities.push({ type:'portal', r, c });
+  if(tool === 'triangle') state.entities.push({ type:'triangle', r, c });
 }
 
 /* ---------------- rendering ---------------- */
@@ -507,16 +509,37 @@ function render(t){
       ctx.fillText(String(Math.floor(idx/2)+1), cx + TILE*0.26, cy + TILE*0.26);
       ctx.restore();
     }
+    else if(e.type === 'triangle'){
+      const a = 0.5 + 0.5*Math.sin(t*1.5 + e.c);
+      ctx.save();
+      ctx.globalAlpha = 0.32 + 0.32*a;
+      ctx.strokeStyle = '#f2b134';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, TILE*0.34, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+      drawEmoji('🔺', cx, cy + Math.sin(t*2 + e.r)*1.5, TILE*0.6);
+    }
   }
 
   /* --- player --- */
   if(state.mode === 'play' && player){
     const px = (player.c+0.5)*TILE, py = (player.r+0.5)*TILE;
     const shake = player.dead ? Math.sin(t*60)*4 : 0;
-    drawGlowPad(px, py, TILE*0.6, 'rgba(140,220,255,.85)', 0.6);
+    const stuck = !player.dead && player.frozen > 0;
+    drawGlowPad(px, py, TILE*0.6, stuck ? 'rgba(242,177,52,.9)' : 'rgba(140,220,255,.85)', 0.6);
     drawEmoji('🤠', px + shake, py, TILE*0.62, {
       alpha: player.dead ? 0.6 : 1, shadow:true
     });
+    if(stuck){
+      ctx.save();
+      ctx.fillStyle = '#f2b134';
+      ctx.font = `bold ${Math.round(TILE*0.26)}px ui-sans-serif,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⏳ ' + Math.ceil(player.frozen/1000) + 's', px, py - TILE*0.52);
+      ctx.restore();
+    }
   }
 
   ctx.restore();
@@ -554,7 +577,7 @@ function setMode(mode){
 }
 
 function resetPlay(){
-  player = { r: state.start.r, c: state.start.c, dead:false, won:false, timer:0 };
+  player = { r: state.start.r, c: state.start.c, dead:false, won:false, timer:0, frozen:0 };
   monsterTimer = 0;
   moveCooldown = 0;
   for(const m of monsters()){
@@ -611,7 +634,7 @@ function checkCollisions(){
 }
 
 function tryMove(dr,dc){
-  if(!player || player.dead || player.won) return;
+  if(!player || player.dead || player.won || player.frozen > 0) return;
   const nr = player.r + dr, nc = player.c + dc;
   if(!isFloor(nr,nc)) return;
   player.r = nr; player.c = nc;
@@ -624,6 +647,9 @@ function tryMove(dr,dc){
     const partner = ps[partnerIdx];
     if(partner){ player.r = partner.r; player.c = partner.c; }
   }
+  // triangle: sticks the hero for 5s (the tile never goes away)
+  const tri = state.entities.find(e => e.type==='triangle' && e.r===player.r && e.c===player.c);
+  if(tri && player.frozen <= 0) player.frozen = 5000;
   checkCollisions();
 }
 
@@ -636,6 +662,14 @@ function updatePlay(dt){
     return;
   }
   if(player.won) return;
+
+  // frozen by a triangle: no movement, dinos keep patrolling
+  if(player.frozen > 0){
+    player.frozen = Math.max(0, player.frozen - dt);
+    updateMonsters(dt);
+    if(!player.dead) checkCollisions();
+    return;
+  }
 
   // input
   moveCooldown -= dt;
@@ -777,7 +811,7 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
 /* ---------------- hint bar ---------------- */
 function updateHint(){
   if(state.mode === 'play'){
-    hintEl.innerHTML = '<b>Find the 🏁</b> · move with arrows / WASD · avoid 🦖 and 🕳️ · 🌀 teleports you';
+    hintEl.innerHTML = '<b>Find the 🏁</b> · move with arrows / WASD · avoid 🦖 and 🕳️ · 🔺 sticks you for 5s · 🌀 teleports you';
   } else {
     const tips = {
       hand: 'Drag to pan, scroll to zoom.',
@@ -788,6 +822,7 @@ function updateHint(){
       monster: 'Place a 🦖. Dinos patrol back and forth until they hit rock.',
       trap: 'Place a 🕳️ pit. Stepping on it sends you back to start.',
       portal: 'Place 🌀 in pairs — the first pairs with the second, and so on.',
+      triangle: 'Place a 🔺 triangle. Step on it and you are stuck for 5 seconds — it never disappears.',
       eraser: 'Click or drag to clear rock and anything on the tile.',
     };
     hintEl.innerHTML = `<b>Editor</b> · ${tips[state.tool] || ''}`;
@@ -798,7 +833,7 @@ function updateHint(){
 function encodeMaze(){
   const tiles = state.tiles.map(row => row.join('')).join(',');
   const ents = state.entities.map(e => {
-    const k = e.type === 'monster' ? 'm' : e.type === 'trap' ? 't' : 'p';
+    const k = e.type === 'monster' ? 'm' : e.type === 'trap' ? 't' : e.type === 'triangle' ? 'x' : 'p';
     return k + e.r + '.' + e.c;
   }).join(';');
   const s = ['1', state.w, state.h, tiles,
@@ -841,6 +876,7 @@ function decodeMaze(code){
       if(kind === 'm') entities.push({ type:'monster', r:rr, c:cc, sr:rr, sc:cc });
       if(kind === 't') entities.push({ type:'trap', r:rr, c:cc });
       if(kind === 'p') entities.push({ type:'portal', r:rr, c:cc });
+      if(kind === 'x') entities.push({ type:'triangle', r:rr, c:cc });
     }
   }
 

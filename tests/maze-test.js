@@ -64,6 +64,35 @@ decodeMaze(encodeMaze());
 if (b1 !== snap()) throw new Error('round-trip mismatch (custom maze)');
 console.log('round-trip OK (custom, incl. lone portal)');
 
+/* ---- triangle: sticky artifact ---- */
+state.w = 7; state.h = 3;
+state.tiles = [[1,1,1,1,1,1,1],[1,0,0,0,0,0,1],[1,1,1,1,1,1,1]];
+state.start = { r:1, c:1 };
+state.exit = { r:1, c:5 };
+state.entities = [ { type:'triangle', r:1, c:3 } ];
+const bT = snap();
+decodeMaze(encodeMaze());
+if (bT !== snap()) throw new Error('triangle round-trip mismatch');
+console.log('triangle round-trip OK');
+
+setMode('play');
+if (player.r !== 1 || player.c !== 1) throw new Error('play boot: player not at start');
+tryMove(0,1);
+if (player.c !== 2) throw new Error('move onto plain floor failed');
+tryMove(0,1); // step onto the triangle
+if (player.c !== 3 || player.frozen !== 5000) throw new Error('triangle did not freeze the hero');
+if (!state.entities.some(e => e.type === 'triangle' && e.r === 1 && e.c === 3)) throw new Error('triangle vanished after trigger');
+tryMove(0,1);
+if (player.c !== 3) throw new Error('hero could move while frozen');
+updatePlay(2000); updatePlay(2000); updatePlay(1000);
+if (player.frozen !== 0) throw new Error('freeze timer did not expire');
+tryMove(0,1);
+if (player.c !== 4) throw new Error('hero could not move after freeze expired');
+tryMove(0,-1); // back onto the triangle
+if (player.frozen !== 5000) throw new Error('triangle did not re-trigger');
+state.mode = 'edit'; // reset for later sections
+console.log('triangle freeze/walk-off/persist/re-trigger OK');
+
 /* bad version must throw */
 let threw = false;
 try { decodeMaze(btoa('9,x,y,z')); } catch (_) { threw = true; }
