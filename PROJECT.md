@@ -54,7 +54,7 @@ Everything is drawn **procedurally** with Canvas 2D primitives:
   producing a chunky stone look.
 - **Path** — alternating checkerboard tints for readability.
 - **Start / Exit pads** — radial-gradient glow, animated pulse.
-- **Player, bears, portals, traps** — drawn with `ctx.fillText` of emoji,
+- **Player, dinos, portals, traps** — drawn with `ctx.fillText` of emoji,
   centered in their tile. Portals additionally rotate.
 - **Vignette** — radial gradient overlay for atmosphere.
 
@@ -63,7 +63,7 @@ switch is inline, but the intent is the same):
 
 ```js
 const ENTITY_TYPES = {
-  monster: { emoji: '🐻', anim: 'bob' },
+  monster: { emoji: '🦖', anim: 'bob' },
   trap:    { emoji: '🕳️', anim: 'pulse' },
   portal:  { emoji: '🌀', anim: 'spin' },
   start:   { emoji: '🚩' },
@@ -101,7 +101,7 @@ const state = {
 
 ### Difficulty presets (generation only — share format unchanged)
 
-| Level | Grid | Braid | Bears | Pits | Portal pairs |
+| Level | Grid | Braid | Dinos | Pits | Portal pairs |
 |--------|-------|-------------------|-------|------|--------------|
 | 🟢 Easy | 9×7 | 0.85 — lots of loops | 0 | 1 | 1 |
 | 🟠 Medium | 15×11 | 0.35 | 1 | 1 | 1 |
@@ -113,8 +113,8 @@ within 2 tiles (Manhattan) of the start spawn.
 
 - **`edit`** — paint tiles; pan/zoom; place/move start & exit; place
   entities.
-- **`play`** — grid-step movement with arrow keys / WASD; bears patrol;
-  pits and bears kill; portals teleport; reaching exit wins.
+- **`play`** — grid-step movement with arrow keys / WASD; dinos patrol;
+  pits and dinos kill; portals teleport; reaching exit wins.
 
 ### Rendering pipeline (per frame)
 1. `ctx.setTransform(dpr,0,0,dpr,0,0)` + clear.
@@ -225,7 +225,7 @@ save→copy→open-in-new-tab cycle.
 | Pan (drag) + zoom (wheel) | ✅ |
 | Paint rock/path, drag-paint | ✅ |
 | One 🚩 start / one 🏁 exit (structurally enforced) | ✅ |
-| 🐻 bears that patrol horizontally, bounce off rock | ✅ |
+| 🦖 dinos that patrol horizontally, bounce off rock | ✅ |
 | 🌀 portals in pairs, auto-numbered | ✅ |
 | 🕳️ pit traps (respawn at start) | ✅ |
 | Play mode (ranger 🤠, arrow keys/WASD) | ✅ |
@@ -237,21 +237,21 @@ save→copy→open-in-new-tab cycle.
 | Undo (Ctrl+Z) | ❌ |
 | Sound | ❌ |
 | Save multiple mazes locally | ❌ |
-| Bear "guards the exit" mode | ❌ |
+| Dino "guards the exit" mode | ❌ |
 | Spritesheet art | ❌ |
 
 ---
 
 ## 9. Roadmap (ordered by value / effort)
 
-1. **Bear guards the exit** — the kid's favorite idea. Add a `guard`
-   flag on a monster; guard bears oscillate within N tiles of the exit
+1. **Dino guards the exit** — the kid's favorite idea. Add a `guard`
+   flag on a monster; guard dinos oscillate within N tiles of the exit
    instead of wandering. Small change to `pickDir` + generation.
 2. **Undo / redo** — Ctrl+Z is essential once mazes get big. Implement
    as a stack of `JSON.stringify(state)` snapshots, capped at ~50.
 3. **Smoother movement** — 150ms grid steps feel stiff. Tween the
    player between tiles over ~120ms.
-4. **Sound effects** — footstep, portal whoosh, bear roar, win/lose
+4. **Sound effects** — footstep, portal whoosh, dino roar, win/lose
    jingle. Use `Audio` with tiny data-URI clips, no asset files.
 5. **Decorations** — fossil / bone / fern tiles that are non-interactive
    but sell the Jurassic theme cheaply.
@@ -302,7 +302,7 @@ If you're an agent picking this up:
   update the status table (section 8).
 - **Ask before assuming**: theme changes, difficulty, and target age
   are sensitive; the 7-year-old's preferences were explicit
-  (bears, portals, not too childish).
+  (dinos, portals, not too childish).
 
 ### Questions to ask before any major feature
 1. Does this change touch the start/exit invariant? (If yes, verify.)
@@ -325,10 +325,10 @@ The complete v1 source is [`index.html`](./index.html) in this repo.
 
 - [x] Save this file as `PROJECT.md` and the source block above as `index.html`.
 - [ ] Open `index.html` in a browser → confirm the editor loads.
-- [ ] Draw a wall, place a bear, copy the link, open it in a new tab → confirm round-trip.
+- [ ] Draw a wall, place a dino, copy the link, open it in a new tab → confirm round-trip.
 - [x] Push to a GitHub repo (private is fine) → `chaos87/maze-game`.
 - [ ] Import the repo into Vercel → confirm it deploys.
-- [ ] Pick the **next feature** from section 9 (recommended: bear guards the exit).
+- [ ] Pick the **next feature** from section 9 (recommended: dino guards the exit).
 - [ ] Hand this file + the current source to your coding agent as context.
 
 ---
