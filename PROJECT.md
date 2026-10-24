@@ -67,9 +67,9 @@ switch is inline, but the intent is the same):
 ```js
 const ENTITY_TYPES = {
   monster: { emoji: '🦖', anim: 'bob' },
-  trap:    { emoji: '🕳️', anim: 'pulse' },
+  trap:    { emoji: '🕳️' },
   portal:  { emoji: '🌀', anim: 'spin' },
-  triangle:{ emoji: '🔺', anim: 'pulse' },
+  triangle:{ emoji: '🔺', anim: 'bob' },
   start:   { emoji: '🚩' },
   exit:    { emoji: '🏁' },
 };

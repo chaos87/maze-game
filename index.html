@@ -490,15 +490,6 @@ function render(t){
       drawEmoji('🦖', cx, cy + bob, TILE*0.66, { shadow:true });
     }
     else if(e.type === 'trap'){
-      const a = 0.55 + 0.45*Math.sin(t*4 + e.r);
-      ctx.save();
-      ctx.globalAlpha = 0.35 + 0.35*a;
-      ctx.strokeStyle = '#e05a3a';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(cx, cy, TILE*0.34, 0, Math.PI*2);
-      ctx.stroke();
-      ctx.restore();
       drawEmoji('🕳️', cx, cy, TILE*0.58);
     }
     else if(e.type === 'portal'){
@@ -516,15 +507,6 @@ function render(t){
       ctx.restore();
     }
     else if(e.type === 'triangle'){
-      const a = 0.5 + 0.5*Math.sin(t*1.5 + e.c);
-      ctx.save();
-      ctx.globalAlpha = 0.32 + 0.32*a;
-      ctx.strokeStyle = '#f2b134';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(cx, cy, TILE*0.34, 0, Math.PI*2);
-      ctx.stroke();
-      ctx.restore();
       drawEmoji('🔺', cx, cy + Math.sin(t*2 + e.r)*1.5, TILE*0.6);
     }
   }
