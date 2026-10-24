@@ -105,11 +105,11 @@ const state = {
 
 ### Difficulty presets (generation only — share format unchanged)
 
-| Level | Grid | Braid | Dinos | Pits | Portal pairs |
-|--------|-------|-------------------|-------|------|--------------|
-| 🟢 Easy | 9×7 | 0.85 — lots of loops | 0 | 1 | 1 |
-| 🟠 Medium | 15×11 | 0.35 | 1 | 1 | 1 |
-| 🔴 Hard | 21×15 | 0.08 — near-perfect maze | 3 | 2 | 2 |
+| Level | Grid | Braid | Dinos | Pits | Portal pairs | Triangles |
+|--------|-------|-------------------|-------|------|---------------|-----------|
+| 🟢 Easy | 9×7 | 0.85 — lots of loops | 0 | 1 | 1 | 1 |
+| 🟠 Medium | 15×11 | 0.35 | 1 | 1 | 1 | 2 |
+| 🔴 Hard | 21×15 | 0.08 — near-perfect maze | 3 | 2 | 2 | 3 |
 
 `braidMaze` opens dead-end walls after generation so easier mazes have
 multiple routes instead of one forced path. Entities are never placed

@@ -197,9 +197,9 @@ function generateMaze(w,h){
    braid = fraction of dead ends opened into loops
    (higher = more alternate paths = more forgiving) */
 const DIFFICULTY = {
-  easy:   { w: 9,  h: 7,  braid: 0.85, dinos: 0, pits: 1, portals: 1 },
-  medium: { w: 15, h: 11, braid: 0.35, dinos: 1, pits: 1, portals: 1 },
-  hard:   { w: 21, h: 15, braid: 0.08, dinos: 3, pits: 2, portals: 2 },
+  easy:   { w: 9,  h: 7,  braid: 0.85, dinos: 0, pits: 1, portals: 1, triangles: 1 },
+  medium: { w: 15, h: 11, braid: 0.35, dinos: 1, pits: 1, portals: 1, triangles: 2 },
+  hard:   { w: 21, h: 15, braid: 0.08, dinos: 3, pits: 2, portals: 2, triangles: 3 },
 };
 const DIFF_LABEL = { easy: '🟢 Easy', medium: '🟠 Medium', hard: '🔴 Hard' };
 
@@ -320,6 +320,12 @@ function buildMaze(d){
       pits.pop();
     }
     if(!placed) return false;
+  }
+  // triangles: pure-delay hazard, can't block a route, so any fair cell works
+  for(let i=0;i<d.triangles;i++){
+    const spot = open.pop();
+    if(!spot) return false;
+    state.entities.push({ type:'triangle', r:spot.r, c:spot.c });
   }
   // portals: harmless in any placement (teleporting can only help)
   for(let i=0;i<d.portals;i++){

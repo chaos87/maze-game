@@ -110,11 +110,13 @@ newMaze('easy');
 if (state.w !== 9 || state.h !== 7) throw new Error('easy size wrong');
 if (dinosOf().length !== 0) throw new Error('easy should have no dinos');
 if (state.entities.filter(e => e.type === 'portal').length !== 2) throw new Error('easy portals');
+if (state.entities.filter(e => e.type === 'triangle').length !== 1) throw new Error('easy triangles');
 console.log('easy OK: 9x7, entities:', state.entities.map(e => e.type).join(','));
 
 newMaze('medium');
 if (state.w !== 15 || state.h !== 11) throw new Error('medium size wrong');
 if (dinosOf().length !== 1) throw new Error('medium dinos');
+if (state.entities.filter(e => e.type === 'triangle').length !== 2) throw new Error('medium triangles');
 console.log('medium OK: 15x11, entities:', state.entities.map(e => e.type).join(','));
 
 newMaze('hard');
@@ -122,6 +124,7 @@ if (state.w !== 21 || state.h !== 15) throw new Error('hard size wrong');
 if (dinosOf().length !== 3) throw new Error('hard dinos');
 if (trapsOf().length !== 2) throw new Error('hard pits');
 if (state.entities.filter(e => e.type === 'portal').length !== 4) throw new Error('hard portals');
+if (state.entities.filter(e => e.type === 'triangle').length !== 3) throw new Error('hard triangles');
 console.log('hard OK: 21x15, entities:', state.entities.map(e => e.type).join(','));
 
 /* round-trip per difficulty */
