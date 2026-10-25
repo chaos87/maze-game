@@ -204,6 +204,7 @@ const DIFFICULTY = {
 const DIFF_LABEL = { easy: '🟢 Easy', medium: '🟠 Medium', hard: '🔴 Hard' };
 /* portals may shortcut the ranger's route, but never trivialize it: the safe
    path using a pair must stay at least this fraction of the path without it */
+const TRIANGLE_FREEZE_MS = 3000;
 const PORTAL_SHORTCUT_MIN = 0.6;
 
 /* knock out dead-end walls so the maze has loops, not one forced path */
@@ -690,7 +691,7 @@ function tryMove(dr,dc){
   }
   // triangle: sticks the hero for 5s (the tile never goes away)
   const tri = state.entities.find(e => e.type==='triangle' && e.r===player.r && e.c===player.c);
-  if(tri && player.frozen <= 0) player.frozen = 5000;
+  if(tri && player.frozen <= 0) player.frozen = TRIANGLE_FREEZE_MS;
   checkCollisions();
 }
 
@@ -852,7 +853,7 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
 /* ---------------- hint bar ---------------- */
 function updateHint(){
   if(state.mode === 'play'){
-    hintEl.innerHTML = '<b>Find the 🏁</b> · move with arrows / WASD · avoid 🦖 and 🕳️ · 🔺 sticks you for 5s · 🌀 teleports you';
+    hintEl.innerHTML = '<b>Find the 🏁</b> · move with arrows / WASD · avoid 🦖 and 🕳️ · 🔺 sticks you for 3s · 🌀 teleports you';
   } else {
     const tips = {
       hand: 'Drag to pan, scroll to zoom.',
@@ -863,7 +864,7 @@ function updateHint(){
       monster: 'Place a 🦖. Dinos patrol back and forth until they hit rock.',
       trap: 'Place a 🕳️ pit. Stepping on it sends you back to start.',
       portal: 'Place 🌀 in pairs — the first pairs with the second, and so on.',
-      triangle: 'Place a 🔺 triangle. Step on it and you are stuck for 5 seconds — it never disappears.',
+      triangle: 'Place a 🔺 triangle. Step on it and you are stuck for 3 seconds — it never disappears.',
       eraser: 'Click or drag to clear rock and anything on the tile.',
     };
     hintEl.innerHTML = `<b>Editor</b> · ${tips[state.tool] || ''}`;

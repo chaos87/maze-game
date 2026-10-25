@@ -20,7 +20,7 @@ python3 -m http.server 8000
 
 - **Editor**: pick a tool (Rock, Path, Start, Exit, Dino, Pit, Portal, Triangle, Eraser) and paint. Drag with 🖐 to pan, scroll to zoom.
 - **Difficulty**: 🟢 Easy / 🟠 Medium / 🔴 Hard buttons generate a fresh auto-maze of that level.
-- **Play**: arrow keys / WASD. Avoid dinos and pits — 🔺 triangles stick you for 5 seconds, step on a portal to teleport.
+- **Play**: arrow keys / WASD. Avoid dinos and pits — 🔺 triangles stick you for 3 seconds, step on a portal to teleport.
 - **Share**: 🔗 Copy link sends the whole maze in the URL hash.
 
 Exactly one 🚩 start and one 🏁 exit per maze — enforced by design.

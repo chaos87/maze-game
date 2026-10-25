@@ -86,7 +86,7 @@ if (player.r !== 1 || player.c !== 1) throw new Error('play boot: player not at 
 tryMove(0,1);
 if (player.c !== 2) throw new Error('move onto plain floor failed');
 tryMove(0,1); // step onto the triangle
-if (player.c !== 3 || player.frozen !== 5000) throw new Error('triangle did not freeze the hero');
+if (player.c !== 3 || player.frozen !== TRIANGLE_FREEZE_MS) throw new Error('triangle did not freeze the hero');
 if (!state.entities.some(e => e.type === 'triangle' && e.r === 1 && e.c === 3)) throw new Error('triangle vanished after trigger');
 tryMove(0,1);
 if (player.c !== 3) throw new Error('hero could move while frozen');
@@ -95,7 +95,7 @@ if (player.frozen !== 0) throw new Error('freeze timer did not expire');
 tryMove(0,1);
 if (player.c !== 4) throw new Error('hero could not move after freeze expired');
 tryMove(0,-1); // back onto the triangle
-if (player.frozen !== 5000) throw new Error('triangle did not re-trigger');
+if (player.frozen !== TRIANGLE_FREEZE_MS) throw new Error('triangle did not re-trigger');
 state.mode = 'edit'; // reset for later sections
 console.log('triangle freeze/walk-off/persist/re-trigger OK');
 

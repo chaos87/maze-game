@@ -30,7 +30,7 @@ Repo: `chaos87/maze-game`
   (hazard-avoiding) route using it stays ≥ `PORTAL_SHORTCUT_MIN` (0.6) of the safe
   route without it, per `routeLen` BFS. Fall back to the best pair seen so the
   maze always completes.
-- **Triangles** 🔺 are a sticky artifact: stepping on one freezes the ranger for 5
+- **Triangles** 🔺 are a sticky artifact: stepping on one freezes the ranger for 3
   seconds, then they can walk off. The tile persists forever and re-triggers
   every time the hero lands on it (serializes as glyph `x` in the maze URL).
 - **Vanilla JS, no build step** — one `index.html` runs by double-clicking
