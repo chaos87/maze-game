@@ -24,7 +24,12 @@ Repo: `chaos87/maze-game`
   "guard the exit" mode is a future idea.
 - **Emoji + procedural shapes** for graphics in v1 — no art assets.
   Drop-in spritesheet swap is planned but not yet needed.
-- **Portals come in pairs**, auto-paired by placement order (1↔1, 2↔2, …).
+- **Portals come in pairs**, auto-paired by placement order (1↔1, 2↔2, …). Pair
+  numbers show in the editor and are hidden in play mode.
+- **Portal anti-shortcut gate** — a generated pair is only accepted if the safe
+  (hazard-avoiding) route using it stays ≥ `PORTAL_SHORTCUT_MIN` (0.6) of the safe
+  route without it, per `routeLen` BFS. Fall back to the best pair seen so the
+  maze always completes.
 - **Triangles** 🔺 are a sticky artifact: stepping on one freezes the ranger for 5
   seconds, then they can walk off. The tile persists forever and re-triggers
   every time the hero lands on it (serializes as glyph `x` in the maze URL).

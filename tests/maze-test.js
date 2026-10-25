@@ -34,6 +34,12 @@ const snap = () => JSON.stringify({
 });
 const trapsOf = () => state.entities.filter(e => e.type === 'trap');
 const dinosOf = () => state.entities.filter(e => e.type === 'monster');
+const portalsOf = () => state.entities.filter(e => e.type === 'portal');
+const portalHopsOf = () => {
+  const ps = portalsOf(), hops = [];
+  for(let i = 0; i + 1 < ps.length; i += 2) hops.push([ps[i], ps[i+1]]);
+  return hops;
+};
 
 /* boot smoke test: medium default */
 if (!state.tiles.length || state.w !== 15 || state.h !== 11) throw new Error('boot: maze not generated');
@@ -93,6 +99,15 @@ if (player.frozen !== 5000) throw new Error('triangle did not re-trigger');
 state.mode = 'edit'; // reset for later sections
 console.log('triangle freeze/walk-off/persist/re-trigger OK');
 
+/* routeLen unit: plain path vs portal hop */
+state.w = 7; state.h = 3;
+state.tiles = [[1,1,1,1,1,1,1],[1,0,0,0,0,0,1],[1,1,1,1,1,1,1]];
+state.start = { r:1, c:1 }; state.exit = { r:1, c:5 };
+state.entities = [];
+if (routeLen([], [], []) !== 4) throw new Error('routeLen plain wrong');
+if (routeLen([], [], [[{r:1,c:1},{r:1,c:5}]]) !== 1) throw new Error('routeLen hop wrong');
+console.log('routeLen OK (plain=4, portal hop=1)');
+
 /* bad version must throw */
 let threw = false;
 try { decodeMaze(btoa('9,x,y,z')); } catch (_) { threw = true; }
@@ -145,6 +160,12 @@ for (const k of ['easy','medium','hard']) {
     newMaze(k);
     if (!feasible(trapsOf(), dinosOf())) {
       throw new Error(k + ' gen ' + i + ': maze infeasible (dino/pit blocks the only route)');
+    }
+    const baseSafe = routeLen(trapsOf(), dinosOf(), []);
+    const portalSafe = routeLen(trapsOf(), dinosOf(), portalHopsOf());
+    if (baseSafe == null || portalSafe == null || portalSafe < Math.ceil(baseSafe * 0.6)) {
+      throw new Error(k + ' gen ' + i + ': portals trivialize the safe route ('
+        + portalSafe + ' < 0.6 x ' + baseSafe + ')');
     }
     checked++;
   }

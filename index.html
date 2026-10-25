@@ -202,6 +202,9 @@ const DIFFICULTY = {
   hard:   { w: 21, h: 15, braid: 0.08, dinos: 3, pits: 2, portals: 2, triangles: 3 },
 };
 const DIFF_LABEL = { easy: '🟢 Easy', medium: '🟠 Medium', hard: '🔴 Hard' };
+/* portals may shortcut the ranger's route, but never trivialize it: the safe
+   path using a pair must stay at least this fraction of the path without it */
+const PORTAL_SHORTCUT_MIN = 0.6;
 
 /* knock out dead-end walls so the maze has loops, not one forced path */
 function braidMaze(t, w, h, factor){
@@ -267,11 +270,44 @@ function feasible(pits, dinos){
   return false;
 }
 
+/* length of the safest start->exit route: avoids pits + dino patrol
+   corridors; portal hops cost 1 step like a normal move. Returns null
+   when unreachable. */
+function routeLen(pits, dinos, hops){
+  const blocked = new Set();
+  const key = (r,c) => r + '_' + c;
+  for(const p of pits) blocked.add(key(p.r, p.c));
+  for(const b of dinos) for(const cell of corridorRun(b.r, b.c)) blocked.add(key(cell.r, cell.c));
+  const hopTo = new Map();
+  for(const [a, b] of hops){
+    hopTo.set(key(a.r, a.c), b);
+    hopTo.set(key(b.r, b.c), a);
+  }
+  const q = [{ r: state.start.r, c: state.start.c, d: 0 }];
+  const seen = new Set([key(state.start.r, state.start.c)]);
+  while(q.length){
+    const cur = q.shift();
+    if(cur.r === state.exit.r && cur.c === state.exit.c) return cur.d;
+    const hop = hopTo.get(key(cur.r, cur.c));
+    if(hop && !blocked.has(key(hop.r, hop.c)) && !seen.has(key(hop.r, hop.c))){
+      seen.add(key(hop.r, hop.c));
+      q.push({ r: hop.r, c: hop.c, d: cur.d + 1 });
+    }
+    for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nr = cur.r + dr, nc = cur.c + dc, nk = key(nr, nc);
+      if(!isFloor(nr,nc) || blocked.has(nk) || seen.has(nk)) continue;
+      seen.add(nk);
+      q.push({ r: nr, c: nc, d: cur.d + 1 });
+    }
+  }
+  return null;
+}
+
 function newMaze(diffKey){
   const d = DIFFICULTY[diffKey] || DIFFICULTY.medium;
   state.difficultyKey = diffKey in DIFFICULTY ? diffKey : 'medium';
   for(let attempt = 0; attempt < 60; attempt++){
-    if(buildMaze(d)) break;
+    if(buildMaze(d, attempt >= 40)) break;
     if(attempt === 59) console.warn('maze feasibility fallback after 60 attempts');
   }
 
@@ -279,7 +315,7 @@ function newMaze(diffKey){
   if(state.mode === 'play') setMode('edit');
 }
 
-function buildMaze(d){
+function buildMaze(d, relaxed){
   state.w = d.w; state.h = d.h;
   state.tiles = generateMaze(d.w, d.h);
   braidMaze(state.tiles, d.w, d.h, d.braid);
@@ -327,14 +363,29 @@ function buildMaze(d){
     if(!spot) return false;
     state.entities.push({ type:'triangle', r:spot.r, c:spot.c });
   }
-  // portals: harmless in any placement (teleporting can only help)
+  // portals: consider the start->finish route. A pair is only placed if
+  // the safe route using it stays >= PORTAL_SHORTCUT_MIN of the safe route
+  // without it — no more exit-adjacent teleports that skip the whole maze.
+  const baseSafe = routeLen(pits, dinos, []);
+  const hops = []; // pairs accepted so far - gate each pair cumulatively
   for(let i=0;i<d.portals;i++){
-    const p1 = open.pop(), p2 = open.pop();
-    if(!p1 || !p2) return false;
-    state.entities.push(
-      { type:'portal', r:p1.r, c:p1.c },
-      { type:'portal', r:p2.r, c:p2.c }
-    );
+    let placed = false;
+    let oi = 0;
+    while(!placed && oi + 1 < open.length){
+      const p1 = open[oi], p2 = open[oi + 1];
+      oi += 2;
+      const withPair = routeLen(pits, dinos, hops.concat([[p1, p2]]));
+      if(withPair == null) continue;
+      if(!relaxed && withPair < Math.ceil(baseSafe * PORTAL_SHORTCUT_MIN)) continue;
+      state.entities.push(
+        { type:'portal', r:p1.r, c:p1.c },
+        { type:'portal', r:p2.r, c:p2.c }
+      );
+      hops.push([p1, p2]);
+      placed = true;
+    }
+    if(!placed) return false; // fresh layout in the next build attempt
+    open.splice(0, oi);       // drop the scanned candidates, keep the rest
   }
   for(const b of dinos) state.entities.push({ type:'monster', r:b.r, c:b.c, sr:b.r, sc:b.c });
   for(const p of pits) state.entities.push({ type:'trap', r:p.r, c:p.c });
@@ -498,13 +549,15 @@ function render(t){
       drawEmoji('🌀', cx, cy, TILE*0.62, {
         rot: t*1.6, alpha: paired ? 1 : 0.35, shadow:false
       });
-      ctx.save();
-      ctx.globalAlpha = paired ? 0.85 : 0.4;
-      ctx.fillStyle = '#9ad0ff';
-      ctx.font = `bold ${Math.round(TILE*0.22)}px ui-sans-serif,sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(Math.floor(idx/2)+1), cx + TILE*0.26, cy + TILE*0.26);
-      ctx.restore();
+      if(state.mode === 'edit'){
+        ctx.save();
+        ctx.globalAlpha = paired ? 0.85 : 0.4;
+        ctx.fillStyle = '#9ad0ff';
+        ctx.font = `bold ${Math.round(TILE*0.22)}px ui-sans-serif,sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(Math.floor(idx/2)+1), cx + TILE*0.26, cy + TILE*0.26);
+        ctx.restore();
+      }
     }
     else if(e.type === 'triangle'){
       drawEmoji('🔺', cx, cy + Math.sin(t*2 + e.r)*1.5, TILE*0.6);
